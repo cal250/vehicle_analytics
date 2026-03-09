@@ -3,6 +3,7 @@ import pandas as pd
 import joblib
 import os
 from .plotly_dashboard import create_rwanda_map
+from model_generators.clustering.train_cluster import evaluate_clustering_model
 
 # Define paths for models and data
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -56,6 +57,15 @@ def classification_analysis(request):
 
 def clustering_analysis(request):
     result = None
+    sil_score = None
+    cv = None
+    # evaluate metrics on dataset (useful regardless of POST)
+    try:
+        sil_score, cv, _, _ = evaluate_clustering_model()
+    except Exception:
+        # ignore failures, metrics will stay None
+        pass
+
     if request.method == 'POST':
         year = int(request.POST.get('year'))
         km = float(request.POST.get('km'))
@@ -70,11 +80,26 @@ def clustering_analysis(request):
         cluster_data = joblib.load(CLUSTERING_MODEL_PATH)
         kmeans = cluster_data['model']
         scaler = cluster_data['scaler']
+        transform = cluster_data.get('transform', None)
+        weight = cluster_data.get('weight', 1)
         label_map = cluster_data['label_map']
         
+        # scale input features the same way as training
         scaled_input = scaler.transform([[income, predicted_price]])
+        # re‑apply any feature weighting
+        if weight != 1:
+            scaled_input = scaled_input.copy()
+            scaled_input[:, 0] *= weight
+        # apply transform if used during training
+        if transform is not None:
+            scaled_input = transform.transform(scaled_input)
+
         cluster_id = kmeans.predict(scaled_input)[0]
         result = label_map[cluster_id]
         
-    context = {'result': result}
+    context = {
+        'result': result,
+        'silhouette_score': sil_score,
+        'coefficient_variation': cv
+    }
     return render(request, 'predictor/clustering_analysis.html', context)
