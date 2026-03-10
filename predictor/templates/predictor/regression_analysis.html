@@ -32,6 +32,22 @@
                 </div>
                 
                 <div class="container px-4">
+                    {% if r2_score is not None and coefficient_variation is not None %}
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card p-3 text-center">
+                                <h6 class="mb-2">R² Score</h6>
+                                <span class="display-6 text-primary">{{ r2_score|floatformat:4 }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card p-3 text-center">
+                                <h6 class="mb-2">CV (Selling Price)</h6>
+                                <span class="display-6 text-primary">{{ coefficient_variation|floatformat:4 }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                     <div class="row">
                         <div class="col-md-6">
                             <div class="card p-4">

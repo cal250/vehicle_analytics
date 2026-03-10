@@ -2,6 +2,8 @@ from django.shortcuts import render
 import pandas as pd
 import joblib
 import os
+from model_generators.regression.train_regression import evaluate_regression_model
+from model_generators.classification.train_classifier import evaluate_classification_model
 from .plotly_dashboard import create_rwanda_map
 from model_generators.clustering.train_cluster import evaluate_clustering_model
 
@@ -27,6 +29,16 @@ def data_exploration_view(request):
 
 def regression_analysis(request):
     result = None
+    r2_score_val = None
+    cv = None
+    # evaluate regression metrics on dataset
+    try:
+        r2_score_val, _ = evaluate_regression_model()
+        df = pd.read_csv(DATA_PATH)
+        cv = df['selling_price'].std() / df['selling_price'].mean()
+    except Exception:
+        pass
+
     if request.method == 'POST':
         year = int(request.POST.get('year'))
         km = float(request.POST.get('km'))
@@ -37,11 +49,25 @@ def regression_analysis(request):
         prediction = model.predict([[year, km, seats, income]])[0]
         result = round(prediction, 2)
         
-    context = {'result': result}
+    context = {
+        'result': result,
+        'r2_score': r2_score_val,
+        'coefficient_variation': cv
+    }
     return render(request, 'predictor/regression_analysis.html', context)
 
 def classification_analysis(request):
     result = None
+    accuracy_val = None
+    cv = None
+    # evaluate classification metrics on dataset
+    try:
+        accuracy_val, _ = evaluate_classification_model()
+        df = pd.read_csv(DATA_PATH)
+        cv = df['estimated_income'].std() / df['estimated_income'].mean()
+    except Exception:
+        pass
+
     if request.method == 'POST':
         year = int(request.POST.get('year'))
         km = float(request.POST.get('km'))
@@ -52,7 +78,11 @@ def classification_analysis(request):
         prediction = model.predict([[year, km, seats, income]])[0]
         result = prediction
         
-    context = {'result': result}
+    context = {
+        'result': result,
+        'accuracy_score': accuracy_val,
+        'coefficient_variation': cv
+    }
     return render(request, 'predictor/classification_analysis.html', context)
 
 def clustering_analysis(request):

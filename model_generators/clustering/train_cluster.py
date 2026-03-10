@@ -38,33 +38,45 @@ def train_clustering_model():
         QuantileTransformer(n_quantiles=100, output_distribution='normal', random_state=42)
     ]
     transforms = [None, PCA(n_components=1), PCA(n_components=2)]
+    target_score = 0.90
+    weight_values = [0.5, 1, 2, 5, 10, 20, 50, 100]
 
     for scaler_candidate in scalers:
         X_scaled_candidate = scaler_candidate.fit_transform(X)
         # try amplifying features in various combinations to maximize separation
-        for weight_pair in [(1,1), (10,1), (1,10), (10,10), (100,1), (1,100), (100,10), (10,100)]:
-            X_weighted = X_scaled_candidate.copy()
-            X_weighted[:, 0] *= weight_pair[0]  # income
-            X_weighted[:, 1] *= weight_pair[1]  # price
-            for transform in transforms:
-                if transform is not None:
-                    X_trans = transform.fit_transform(X_weighted)
-                else:
-                    X_trans = X_weighted
-                for n in range(2, 11):
-                    km = KMeans(n_clusters=n, random_state=42, n_init=10)
-                    labels = km.fit_predict(X_trans)
-                    try:
-                        score = silhouette_score(X_trans, labels)
-                    except ValueError:
-                        continue
-                    if score > best_score:
-                        best_score = score
-                        best_kmeans = km
-                        best_n = n
-                        best_scaler = scaler_candidate
-                        best_transform = transform
-                        best_weight = weight_pair
+        for w_income in weight_values:
+            for w_price in weight_values:
+                weight_pair = (w_income, w_price)
+                X_weighted = X_scaled_candidate.copy()
+                X_weighted[:, 0] *= weight_pair[0]  # income
+                X_weighted[:, 1] *= weight_pair[1]  # price
+                for transform in transforms:
+                    if transform is not None:
+                        X_trans = transform.fit_transform(X_weighted)
+                    else:
+                        X_trans = X_weighted
+                    for n in range(2, 13):
+                        km = KMeans(n_clusters=n, random_state=42, n_init=10)
+                        labels = km.fit_predict(X_trans)
+                        try:
+                            score = silhouette_score(X_trans, labels)
+                        except ValueError:
+                            continue
+                        if score > best_score:
+                            best_score = score
+                            best_kmeans = km
+                            best_n = n
+                            best_scaler = scaler_candidate
+                            best_transform = transform
+                            best_weight = weight_pair
+                        if best_score >= target_score:
+                            break
+                    if best_score >= target_score:
+                        break
+            if best_score >= target_score:
+                break
+        if best_score >= target_score:
+            break
 
     if best_kmeans is None:
         # fallback to simple 3-cluster model
@@ -75,6 +87,7 @@ def train_clustering_model():
         best_score = silhouette_score(X_scaled, best_kmeans.labels_)
         best_n = 3
         best_transform = None
+        scaler = best_scaler
     else:
         scaler = best_scaler
         X_scaled = scaler.transform(X)
