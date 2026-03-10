@@ -155,13 +155,50 @@ def evaluate_clustering_model():
     else:
         print(f"Silhouette score meets threshold after applying weight={weight} and transform={None if transform is None else type(transform).__name__}.")
     
-    # Cluster Summary Table
-    summary_table = df.groupby('cluster_label')['selling_price'].agg(['mean', 'std', 'count']).round(2)
+    # Cluster Summary Table with feature stats and CVs
+    summary_table = df.groupby('cluster_label').agg(
+        income_mean=('estimated_income', 'mean'),
+        income_std=('estimated_income', 'std'),
+        price_mean=('selling_price', 'mean'),
+        price_std=('selling_price', 'std'),
+        count=('selling_price', 'count')
+    ).round(2)
+    summary_table['income_cv'] = (summary_table['income_std'] / summary_table['income_mean']).round(4)
+    summary_table['price_cv'] = (summary_table['price_std'] / summary_table['price_mean']).round(4)
     
     # Comparison table (First 10 rows)
     comparison_table = df[['estimated_income', 'selling_price', 'cluster_label']].head(10)
     
     return sil_score, cv, summary_table, comparison_table
+
+def get_clustered_dataframe():
+    if not os.path.exists(MODEL_PATH):
+        train_clustering_model()
+
+    data = joblib.load(MODEL_PATH)
+    kmeans = data['model']
+    scaler = data['scaler']
+    transform = data.get('transform', None)
+    weight = data.get('weight', 1)
+    label_map = data['label_map']
+
+    df = pd.read_csv(DATA_PATH)
+    features = ['estimated_income', 'selling_price']
+    X = df[features]
+    X_scaled = scaler.transform(X)
+    if weight != 1:
+        X_scaled = X_scaled.copy()
+        if isinstance(weight, (list, tuple)):
+            X_scaled[:, 0] *= weight[0]
+            X_scaled[:, 1] *= weight[1]
+        else:
+            X_scaled[:, 0] *= weight
+    if transform is not None:
+        X_scaled = transform.transform(X_scaled)
+
+    clusters = kmeans.predict(X_scaled)
+    df['cluster_label'] = [label_map[c] for c in clusters]
+    return df
 
 if __name__ == "__main__":
     train_clustering_model()
